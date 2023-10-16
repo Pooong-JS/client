@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body></body>
+  <script type="application/javascript">
+    for (const key of ["log", "info", "warn"]) {
+      const fn = console[key].bind(console);
+      console[key] = function () {
+        fn(arguments);
+        document.body.innerHTML =
+        `<div>
+            ${new Date().toTimeString().split(" ")[0]} ${key}: ${[...arguments]
+            .map((arg) => JSON.stringify(arg))
+            .join(" | ")}
+        </div>` + document.body.innerHTML;
+      };
+    }
+  </script>
+  <script src="/index.ts" type="module"></script>
+</html>

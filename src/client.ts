@@ -2,7 +2,8 @@ import { defaultOptions } from "./constantes";
 import { PooongTimeoutError } from "./error";
 import { CommandResponse, Namespace, PooongClientOptions } from "./types";
 
-export class PooongClient {
+export class PooongClient extends EventTarget {
+  id = crypto.randomUUID();
   options: PooongClientOptions;
   private client: WebSocket | null = null;
   #ready: Promise<PooongClient>;
@@ -16,13 +17,18 @@ export class PooongClient {
     return this.namespace;
   }
 
-  subscriptionsEmitter = new EventTarget();
+  static readonly clients: Map<string, PooongClient> = new Map();
 
   constructor(options: PooongClientOptions) {
+    super();
     this.options = { ...defaultOptions, ...options };
     if (!this.options.public_key) {
       throw new Error("public_key is required");
     }
+    PooongClient.clients.set(
+      this.options.public_key + "|" + this.options.client_name!,
+      this
+    );
     this.#ready = new Promise((resolve, reject) => {
       const url = new URL(this.options.url!);
       url.searchParams.set("authorization", btoa(this.options.public_key));
@@ -72,9 +78,7 @@ export class PooongClient {
     client.addEventListener("message", (event: { data: string }) => {
       const data = JSON.parse(event.data);
       if (data.type === "broadcast" && data.channel) {
-        this.subscriptionsEmitter.dispatchEvent(
-          new CustomEvent(data.channel, { detail: data })
-        );
+        this.dispatchEvent(new CustomEvent(data.channel, { detail: data }));
       }
     });
   }
@@ -117,14 +121,26 @@ export class PooongClient {
   }
 
   async subscribe(channel: string, listener: (payload: any) => void) {
-    this.sendCommand({
+    await this.sendCommand({
       type: "subscribe",
       channel,
     });
-    this.subscriptionsEmitter.addEventListener(channel, listener);
+    this.addEventListener(channel, listener);
     return () => {
-      this.subscriptionsEmitter.removeEventListener(channel, listener);
+      this.removeEventListener(channel, listener);
     };
+  }
+
+  static createOrRetrieve(
+    options: ConstructorParameters<typeof PooongClient>[0]
+  ): PooongClient {
+    const withDefaultOptions = { ...defaultOptions, ...options };
+    const key =
+      withDefaultOptions.public_key + "|" + withDefaultOptions.client_name!;
+    if (PooongClient.clients.has(key)) {
+      return PooongClient.clients.get(key)!;
+    }
+    return new PooongClient(options);
   }
 }
 

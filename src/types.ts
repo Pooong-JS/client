@@ -40,6 +40,6 @@ export interface CommandResponse {
 
 declare global {
   interface Window {
-    PoongClient: typeof PooongClient;
+    PooongClient: typeof PooongClient;
   }
 }

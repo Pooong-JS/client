@@ -67,6 +67,7 @@ export class PooongClient extends EventTarget {
     const client = await this.getClient();
     client.onclose = () => {
       this.#ready = this.createConnecton();
+      this.autoReconnect()
     };
   }
 

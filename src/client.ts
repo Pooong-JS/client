@@ -29,7 +29,13 @@ export class PooongClient extends EventTarget {
       this.options.public_key + "|" + this.options.client_name!,
       this
     );
-    this.#ready = new Promise((resolve, reject) => {
+    this.#ready = this.createConnecton();
+    this.initSubscriptionEmitter();
+    this.autoReconnect();
+  }
+
+  private createConnecton() {
+    return new Promise<PooongClient>((resolve, reject) => {
       const url = new URL(this.options.url!);
       url.searchParams.set("authorization", btoa(this.options.public_key));
       url.searchParams.set("client-name", this.options.client_name!);
@@ -55,7 +61,13 @@ export class PooongClient extends EventTarget {
         reject(error);
       };
     });
-    this.initSubscriptionEmitter();
+  }
+
+  private async autoReconnect() {
+    const client = await this.getClient();
+    client.onclose = () => {
+      this.#ready = this.createConnecton();
+    };
   }
 
   async destroy() {

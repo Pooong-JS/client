@@ -6,6 +6,7 @@ export class PooongClient extends EventTarget {
   id = crypto.randomUUID();
   options: PooongClientOptions;
   private client: WebSocket | null = null;
+  public subscriptions: Set<string> = new Set();
   #ready: Promise<PooongClient>;
   get ready() {
     return this.#ready;
@@ -39,6 +40,11 @@ export class PooongClient extends EventTarget {
       const url = new URL(this.options.url!);
       url.searchParams.set("authorization", btoa(this.options.public_key));
       url.searchParams.set("client-name", this.options.client_name!);
+      try {
+        this.client?.close();
+      } catch (e) {
+        console.log(e);
+      }
       this.client = new WebSocket(url.toString());
       this.client.addEventListener(
         "message",
@@ -50,6 +56,14 @@ export class PooongClient extends EventTarget {
           } else if (data.type === "Namespace") {
             this.namespace = data.namespace;
             resolve(this);
+            Promise.all(
+              [...this.subscriptions].map((channel) =>
+                this.sendCommand({
+                  type: "subscribe",
+                  channel,
+                })
+              )
+            );
           }
         },
         { once: true }
@@ -65,9 +79,9 @@ export class PooongClient extends EventTarget {
 
   private async autoReconnect() {
     const client = await this.getClient();
-    client.onclose = () => {
+    client.onclose = async () => {
       this.#ready = this.createConnecton();
-      this.autoReconnect()
+      this.autoReconnect();
     };
   }
 
@@ -139,9 +153,11 @@ export class PooongClient extends EventTarget {
       channel,
     });
     this.addEventListener(channel, listener);
-    return () => {
+    const unsubscribe = () => {
+      this.subscriptions.delete(channel);
       this.removeEventListener(channel, listener);
     };
+    this.subscriptions.add(channel);
   }
 
   static createOrRetrieve(
